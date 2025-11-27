@@ -35,7 +35,7 @@ jobs:
         if: matrix.os == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libglib2.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
@@ -87,25 +87,18 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node }}
-          cache: "npm"
 
-      - name: Install dependencies
-        run: npm ci
+      - name: Install server dependencies only
+        run: npm ci --workspace=@hypothesi/tauri-mcp-server --include-workspace-root
 
       - name: Build server
-        run: |
-          cd packages/mcp-server
-          npm run build
+        run: npm run build --workspace=@hypothesi/tauri-mcp-server
 
       - name: Run unit tests
-        run: |
-          cd packages/mcp-server
-          npm run test:unit
+        run: npm run test:unit --workspace=@hypothesi/tauri-mcp-server
 
       - name: Type check
-        run: |
-          cd packages/mcp-server
-          npx tsc --noEmit
+        run: npx tsc --noEmit --project packages/mcp-server/tsconfig.json
 
   test-app:
     name: Build test-app
@@ -140,7 +133,7 @@ jobs:
         if: matrix.platform == 'ubuntu-22.04'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          sudo apt-get install -y libglib2.0-dev libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
 
       - name: Cache Rust dependencies
         uses: actions/cache@v4
