@@ -65,6 +65,20 @@ fn main() {
 }
 ```
 
+::: warning Required Configuration
+You **must** enable `withGlobalTauri` in your `tauri.conf.json`:
+
+```json
+{
+  "app": {
+    "withGlobalTauri": true
+  }
+}
+```
+
+This exposes `window.__TAURI__` which the MCP bridge plugin requires to communicate with your app.
+:::
+
 ### 3. Configure Your AI Assistant
 
 Add the MCP server to your assistant's configuration:

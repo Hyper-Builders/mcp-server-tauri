@@ -31,6 +31,20 @@ fn main() {
 }
 ```
 
+::: warning Required Configuration
+You **must** enable `withGlobalTauri` in your `tauri.conf.json` for the MCP bridge to work. This exposes `window.__TAURI__` which the plugin uses to communicate with your app:
+
+```json
+{
+  "app": {
+    "withGlobalTauri": true
+  }
+}
+```
+
+Without this setting, the MCP server will not be able to interact with your application's webview.
+:::
+
 ## Step 2: Configure Your AI Assistant
 
 See the [home page](/) for detailed, assistant-specific configuration examples (Claude Code, Cursor, VS Code, Windsurf, Cline, etc.). The configuration snippets there all point to the same command:
