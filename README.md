@@ -17,15 +17,15 @@
 
 ---
 
-A **Model Context Protocol (MCP) server** that enables AI assistants like Claude, Cursor, and Windsurf to build, test, and debug Tauri v2 applications. Screenshots, DOM state, and console logs from your running app give the AI rich context to understand what's happening—and tools to interact with it.
+A **Model Context Protocol (MCP) server** that enables AI assistants like Claude, Cursor, and Windsurf to build, test, and debug [Tauri](https://tauri.app) v2 applications. Screenshots, DOM state, and console logs from your running app give the AI rich context to understand what's happening—and tools to interact with it.
 
 ## ✨ Features
 
 | Category | Capabilities |
 |----------|-------------|
-| 🎯 **UI Automation** | Screenshots, clicks, typing, scrolling—all via WebSocket |
+| 🎯 **UI Automation** | Screenshots, clicks, typing, scrolling, element finding |
 | 🔍 **IPC Monitoring** | Capture and inspect Tauri IPC calls in real-time |
-| 📱 **Mobile Dev** | Manage Android emulators & iOS simulators |
+| 📱 **Mobile Dev** | Manage iOS simulators & Android emulators |
 | 🛠️ **CLI Integration** | Run any Tauri command (`init`, `dev`, `build`, etc.) |
 | ⚙️ **Configuration** | Read/write Tauri config files with validation |
 | 📋 **Logs** | Stream Android logcat, iOS device logs, system logs |
@@ -39,9 +39,9 @@ A **Model Context Protocol (MCP) server** that enables AI assistants like Claude
 ### Prerequisites
 
 - **Node.js** 20+ and npm
-- **Rust** and Cargo (for Tauri development)
+- **Rust** and Cargo (for [Tauri](https://tauri.app) development)
 - **Tauri CLI**: `npm install -g @tauri-apps/cli@next`
-- For mobile: Android SDK or Xcode (macOS)
+- For mobile: Xcode (macOS) or Android SDK
 
 ### 1. Add the MCP Bridge Plugin to Your Tauri App
 
@@ -62,6 +62,18 @@ fn main() {
         .expect("error while running tauri application");
 }
 ```
+
+**Enable Global Tauri in `tauri.conf.json`:**
+
+```json
+{
+  "app": {
+    "withGlobalTauri": true
+  }
+}
+```
+
+> ⚠️ **Required:** Without `withGlobalTauri`, the MCP server cannot interact with your application's webview.
 
 ### 2. Configure Your AI Assistant
 
@@ -142,7 +154,13 @@ code --add-mcp '{"name":"tauri","command":"npx","args":["-y","@hypothesi/tauri-m
 <details>
 <summary><strong>Windsurf</strong></summary>
 
-Go to `Settings` → `AI` → `MCP Servers`:
+In the Cascade pane, the "MCPs" icon (it looks like a plug), then click the settings icon
+in the top right corner.
+
+Or, go to `Windsurf Settings` → `Cascade` and under the `MCP Servers` heading click `Open
+MCP Marketplace`. Then in the Marketplace, click the gear icon to edit the config.
+
+Add:
 
 ```json
 {
@@ -273,7 +291,7 @@ That's it! Restart your AI assistant and you're ready to build Tauri apps. 🎉
 **Why this approach?**
 
 - ✅ **Rich AI context** — Screenshots, DOM, and logs help the AI understand your app's state
-- ✅ **Cross-platform** — Works on Linux, Windows, and macOS
+- ✅ **Cross-platform** — Works on Linux, Windows, macOS, Android, and iOS
 - ✅ **No external drivers** — No Selenium, Playwright, or browser automation needed
 - ✅ **Native integration** — Direct access to Tauri's IPC and backend
 

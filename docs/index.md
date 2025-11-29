@@ -32,18 +32,18 @@ import { withBase } from 'vitepress';
     <Feature icon="bug" title="Live Debugging" details="Access console logs, window state, and system logs in real-time" />
     <Feature icon="terminal" title="Tauri CLI Commands" details="Execute Tauri CLI commands like build, dev, and init through the AI assistant" />
     <Feature icon="smartphone" title="Device Management" details="List and launch Android emulators and iOS simulators for mobile testing" />
-    <Feature icon="mouse-pointer" title="Native UI Automation" details="Automate UI testing through native Tauri IPC for element interaction and verification" />
+    <Feature icon="mouse-pointer" title="WebView Automation" details="Click, type, scroll, find elements, and verify UI state in your app's webview" />
     <Feature icon="plug" title="Plugin Bridge" details="Execute IPC commands and interact with the Tauri plugin system" />
   </div>
 </div>
 
 ::: tip Community Project
-This is an unofficial community project, independently developed to enhance Tauri development through AI assistance.
+This is an unofficial community project, independently developed to enhance [Tauri](https://tauri.app) development through AI assistance.
 :::
 
 ## What Is This?
 
-**MCP Server for Tauri** bridges AI assistants with your Tauri development environment via the Model Context Protocol. Control your entire dev workflow through natural language - run commands, edit configs, test UI, and debug issues.
+**MCP Server for [Tauri](https://tauri.app)** bridges AI assistants with your Tauri development environment via the Model Context Protocol. Control your entire dev workflow through natural language - run commands, edit configs, test UI, and debug issues.
 
 ## Quick Start
 
@@ -170,7 +170,13 @@ code --add-mcp '{"name":"tauri","command":"npx","args":["-y","@hypothesi/tauri-m
 <details>
   <summary>Windsurf</summary>
 
-Go to `Settings` → `AI` → `MCP Servers`:
+In the Cascade pane, the "MCPs" icon (it looks like a plug), then click the settings icon
+in the top right corner.
+
+Or, go to `Windsurf Settings` → `Cascade` and under the `MCP Servers` heading click `Open
+MCP Marketplace`. Then in the Marketplace, click the gear icon to edit the config.
+
+Add:
 
 ```json
 {

@@ -11,7 +11,7 @@ A **Model Context Protocol (MCP) server** that enables AI assistants like Claude
 
 | Category | Capabilities |
 |----------|-------------|
-| 🎯 **UI Automation** | Screenshots, clicks, typing, scrolling—all via WebSocket |
+| 🎯 **UI Automation** | Screenshots, clicks, typing, scrolling, element finding |
 | 🔍 **IPC Monitoring** | Capture and inspect Tauri IPC calls in real-time |
 | 📱 **Mobile Dev** | Manage Android emulators & iOS simulators |
 | 🛠️ **CLI Integration** | Run any Tauri command (`init`, `dev`, `build`, etc.) |
