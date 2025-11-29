@@ -15,6 +15,7 @@ Node.js/TypeScript server that implements the MCP protocol and provides tools fo
   - `plugin-client.ts` - WebSocket client for communicating with Tauri plugin
   - `webview-executor.ts` - Executes JavaScript in webviews
   - `webview-interactions.ts` - High-level interaction APIs (click, type, etc.)
+  - `script-manager.ts` - Internal API for persistent script injection
 - **`tools-registry.ts`** - Central registry of all MCP tools
 - **`index.ts`** - MCP server entry point
 
@@ -23,9 +24,10 @@ Rust plugin that runs inside Tauri applications, providing the bridge between MC
 
 **Key Modules:**
 - **`lib.rs`** - Plugin initialization and setup
-- **`commands.rs`** - Tauri command handlers
+- **`commands/`** - Tauri command handlers
 - **`websocket.rs`** - WebSocket server for MCP communication
 - **`monitor.rs`** - IPC event monitoring
+- **`script_registry.rs`** - Persistent script injection registry
 - **`bridge.js`** - JavaScript initialization code
 
 ### 3. Test Application (`packages/test-app`)
@@ -69,6 +71,32 @@ The JavaScript execution mechanism uses a hybrid event/channel pattern:
 - **Smart script detection**: Automatically adds `return` for expressions
 - **Timeout handling**: 5-second timeout with proper cleanup
 - **State management**: `ScriptExecutor` manages pending results
+
+## Script Registry
+
+The plugin maintains a registry of scripts that should be automatically re-injected when pages load or navigate. This is used internally for persistent library loading (e.g., html2canvas for screenshots).
+
+### Architecture:
+```rust
+pub struct ScriptRegistry {
+    scripts: HashMap<String, ScriptEntry>,
+}
+
+pub struct ScriptEntry {
+    id: String,
+    script_type: ScriptType, // Inline or Url
+    content: String,
+}
+```
+
+### WebSocket Commands:
+- `register_script` - Add a script to the registry and inject it
+- `remove_script` - Remove a script from registry and DOM
+- `clear_scripts` - Clear all registered scripts
+- `get_scripts` - List all registered scripts
+
+### Page Load Re-injection:
+When a page loads, `bridge.js` calls `request_script_injection` to re-inject all registered scripts. This ensures libraries like html2canvas persist across navigations.
 
 ## IPC Monitoring
 
@@ -179,7 +207,7 @@ await typeText({ selector: 'input[type="text"]', text: 'Hello' });
 ## Future Improvements
 
 - [ ] Implement Chrome DevTools Protocol integration
-- [ ] Support multiple windows/webviews
+- [x] Support multiple windows/webviews
 - [ ] Enhanced error recovery
 - [ ] Performance metrics collection
 

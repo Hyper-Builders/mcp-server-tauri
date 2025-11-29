@@ -4,10 +4,12 @@
 //! between the Tauri application and external MCP clients. It broadcasts events
 //! to all connected clients and can receive commands from them.
 
+use crate::commands::{resolve_window_with_context, WindowContext};
+use crate::script_registry::{ScriptEntry, ScriptType, SharedScriptRegistry};
 use futures_util::{SinkExt, StreamExt};
 use serde_json;
 use std::net::SocketAddr;
-use tauri::{AppHandle, Manager, Runtime};
+use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
 use tokio::net::{TcpListener, TcpStream};
 use tokio::sync::{broadcast, mpsc};
 use tokio_tungstenite::{accept_async, tungstenite::Message};
@@ -512,6 +514,185 @@ async fn handle_connection<R: Runtime>(
                                 })
                             }
                         }
+                    } else if cmd_name == "register_script" {
+                        // Handle script registration
+                        if let Some(args) = command.get("args") {
+                            let script_id = args.get("id").and_then(|v| v.as_str());
+                            let script_type_str = args.get("type").and_then(|v| v.as_str());
+                            let content = args.get("content").and_then(|v| v.as_str());
+
+                            match (script_id, script_type_str, content) {
+                                (Some(id_str), Some(type_str), Some(content_str)) => {
+                                    let script_type = match type_str {
+                                        "url" => ScriptType::Url,
+                                        _ => ScriptType::Inline,
+                                    };
+
+                                    let entry = ScriptEntry {
+                                        id: id_str.to_string(),
+                                        script_type,
+                                        content: content_str.to_string(),
+                                    };
+
+                                    // Add to registry
+                                    let registry: tauri::State<'_, SharedScriptRegistry> =
+                                        app.state();
+                                    {
+                                        let mut reg = registry.lock().unwrap();
+                                        reg.add(entry.clone());
+                                    }
+
+                                    // Inject the script into the webview
+                                    let window_label = args
+                                        .get("windowLabel")
+                                        .and_then(|v| v.as_str())
+                                        .map(|s| s.to_string());
+
+                                    match inject_script_to_webview(&app, &entry, window_label) {
+                                        Ok(result) => serde_json::json!({
+                                            "id": id,
+                                            "success": true,
+                                            "data": { "registered": true, "scriptId": id_str },
+                                            "windowContext": {
+                                                "windowLabel": result.window_context.window_label,
+                                                "totalWindows": result.window_context.total_windows,
+                                                "warning": result.window_context.warning
+                                            }
+                                        }),
+                                        Err(e) => serde_json::json!({
+                                            "id": id,
+                                            "success": false,
+                                            "error": e
+                                        }),
+                                    }
+                                }
+                                _ => serde_json::json!({
+                                    "id": id,
+                                    "success": false,
+                                    "error": "Missing required args: id, type, content"
+                                }),
+                            }
+                        } else {
+                            serde_json::json!({
+                                "id": id,
+                                "success": false,
+                                "error": "Missing args for register_script"
+                            })
+                        }
+                    } else if cmd_name == "remove_script" {
+                        // Handle script removal
+                        if let Some(args) = command.get("args") {
+                            if let Some(script_id) = args.get("id").and_then(|v| v.as_str()) {
+                                let registry: tauri::State<'_, SharedScriptRegistry> = app.state();
+                                let removed = {
+                                    let mut reg = registry.lock().unwrap();
+                                    reg.remove(script_id).is_some()
+                                };
+
+                                // Remove from DOM
+                                let window_label = args
+                                    .get("windowLabel")
+                                    .and_then(|v| v.as_str())
+                                    .map(|s| s.to_string());
+
+                                match remove_script_from_webview(&app, script_id, window_label) {
+                                    Ok(result) => serde_json::json!({
+                                        "id": id,
+                                        "success": true,
+                                        "data": { "removed": removed, "scriptId": script_id },
+                                        "windowContext": {
+                                            "windowLabel": result.window_context.window_label,
+                                            "totalWindows": result.window_context.total_windows,
+                                            "warning": result.window_context.warning
+                                        }
+                                    }),
+                                    Err(e) => {
+                                        eprintln!("Failed to remove script from DOM: {e}");
+                                        serde_json::json!({
+                                            "id": id,
+                                            "success": true,
+                                            "data": { "removed": removed, "scriptId": script_id },
+                                            "error": format!("Script removed from registry but DOM removal failed: {e}")
+                                        })
+                                    }
+                                }
+                            } else {
+                                serde_json::json!({
+                                    "id": id,
+                                    "success": false,
+                                    "error": "Missing script id"
+                                })
+                            }
+                        } else {
+                            serde_json::json!({
+                                "id": id,
+                                "success": false,
+                                "error": "Missing args for remove_script"
+                            })
+                        }
+                    } else if cmd_name == "clear_scripts" {
+                        // Handle clearing all scripts
+                        let registry: tauri::State<'_, SharedScriptRegistry> = app.state();
+                        let count = {
+                            let mut reg = registry.lock().unwrap();
+                            let count = reg.len();
+                            reg.clear();
+                            count
+                        };
+
+                        // Clear from DOM
+                        let window_label = command
+                            .get("args")
+                            .and_then(|a| a.get("windowLabel"))
+                            .and_then(|v| v.as_str())
+                            .map(|s| s.to_string());
+
+                        match clear_scripts_from_webview(&app, window_label) {
+                            Ok(result) => serde_json::json!({
+                                "id": id,
+                                "success": true,
+                                "data": { "cleared": count },
+                                "windowContext": {
+                                    "windowLabel": result.window_context.window_label,
+                                    "totalWindows": result.window_context.total_windows,
+                                    "warning": result.window_context.warning
+                                }
+                            }),
+                            Err(e) => {
+                                eprintln!("Failed to clear scripts from DOM: {e}");
+                                serde_json::json!({
+                                    "id": id,
+                                    "success": true,
+                                    "data": { "cleared": count },
+                                    "error": format!("Scripts cleared from registry but DOM clear failed: {e}")
+                                })
+                            }
+                        }
+                    } else if cmd_name == "get_scripts" {
+                        // Handle getting all registered scripts
+                        let registry: tauri::State<'_, SharedScriptRegistry> = app.state();
+                        let scripts: Vec<serde_json::Value> = {
+                            let reg = registry.lock().unwrap();
+                            reg.get_all()
+                                .iter()
+                                .map(|entry| {
+                                    serde_json::json!({
+                                        "id": entry.id,
+                                        "type": match entry.script_type {
+                                            ScriptType::Inline => "inline",
+                                            ScriptType::Url => "url",
+                                        },
+                                        "content": entry.content
+                                    })
+                                })
+                                .collect()
+                        };
+
+                        serde_json::json!({
+                            "id": id,
+                            "success": true,
+                            "data": { "scripts": scripts }
+                        })
                     } else {
                         // Unknown command
                         serde_json::json!({
@@ -540,4 +721,161 @@ async fn handle_connection<R: Runtime>(
 
     send_task.abort();
     Ok(())
+}
+
+/// Result of a script operation with window context.
+struct ScriptOperationResult {
+    window_context: WindowContext,
+}
+
+/// Injects a script into a specific webview window.
+fn inject_script_to_window<R: Runtime>(
+    window: &WebviewWindow<R>,
+    entry: &ScriptEntry,
+) -> Result<(), String> {
+    let script = match entry.script_type {
+        ScriptType::Inline => format!(
+            r#"
+            (function() {{
+                var existing = document.querySelector('script[data-mcp-script-id="{}"]');
+                if (existing) {{
+                    existing.remove();
+                }}
+                var script = document.createElement('script');
+                script.setAttribute('data-mcp-script-id', '{}');
+                script.textContent = {};
+                document.head.appendChild(script);
+            }})();
+            "#,
+            entry.id,
+            entry.id,
+            serde_json::to_string(&entry.content).unwrap_or_else(|_| "''".to_string())
+        ),
+        ScriptType::Url => format!(
+            r#"
+            (function() {{
+                var existing = document.querySelector('script[data-mcp-script-id="{}"]');
+                if (existing) {{
+                    existing.remove();
+                }}
+                var script = document.createElement('script');
+                script.setAttribute('data-mcp-script-id', '{}');
+                script.src = {};
+                script.async = true;
+                document.head.appendChild(script);
+            }})();
+            "#,
+            entry.id,
+            entry.id,
+            serde_json::to_string(&entry.content).unwrap_or_else(|_| "''".to_string())
+        ),
+    };
+
+    window
+        .eval(&script)
+        .map_err(|e| format!("Failed to inject script: {e}"))
+}
+
+/// Injects a script into the webview DOM.
+/// If a script with the same ID already exists, it is removed first.
+/// Returns window context for the response.
+fn inject_script_to_webview<R: Runtime>(
+    app: &AppHandle<R>,
+    entry: &ScriptEntry,
+    window_label: Option<String>,
+) -> Result<ScriptOperationResult, String> {
+    let resolved = resolve_window_with_context(app, window_label)?;
+
+    inject_script_to_window(&resolved.window, entry)?;
+
+    Ok(ScriptOperationResult {
+        window_context: resolved.context,
+    })
+}
+
+/// Removes a script from a specific window's DOM.
+fn remove_script_from_window<R: Runtime>(
+    window: &WebviewWindow<R>,
+    script_id: &str,
+) -> Result<(), String> {
+    let script = format!(
+        r#"
+        (function() {{
+            var script = document.querySelector('script[data-mcp-script-id="{script_id}"]');
+            if (script) {{
+                script.remove();
+            }}
+        }})();
+        "#
+    );
+
+    window
+        .eval(&script)
+        .map_err(|e| format!("Failed to remove script: {e}"))
+}
+
+/// Removes a script from the webview DOM by ID.
+/// Returns window context for the response.
+fn remove_script_from_webview<R: Runtime>(
+    app: &AppHandle<R>,
+    script_id: &str,
+    window_label: Option<String>,
+) -> Result<ScriptOperationResult, String> {
+    let resolved = resolve_window_with_context(app, window_label)?;
+
+    remove_script_from_window(&resolved.window, script_id)?;
+
+    Ok(ScriptOperationResult {
+        window_context: resolved.context,
+    })
+}
+
+/// Clears all MCP-managed scripts from a specific window's DOM.
+fn clear_scripts_from_window<R: Runtime>(window: &WebviewWindow<R>) -> Result<(), String> {
+    let script = r#"
+        (function() {
+            var scripts = document.querySelectorAll('script[data-mcp-script-id]');
+            scripts.forEach(function(s) { s.remove(); });
+        })();
+    "#;
+
+    window
+        .eval(script)
+        .map_err(|e| format!("Failed to clear scripts: {e}"))
+}
+
+/// Clears all MCP-managed scripts from the webview DOM.
+/// Returns window context for the response.
+fn clear_scripts_from_webview<R: Runtime>(
+    app: &AppHandle<R>,
+    window_label: Option<String>,
+) -> Result<ScriptOperationResult, String> {
+    let resolved = resolve_window_with_context(app, window_label)?;
+
+    clear_scripts_from_window(&resolved.window)?;
+
+    Ok(ScriptOperationResult {
+        window_context: resolved.context,
+    })
+}
+
+/// Injects all registered scripts into the webview.
+/// Called when a page loads to re-inject persistent scripts.
+pub fn inject_all_scripts<R: Runtime>(
+    app: &AppHandle<R>,
+    window_label: Option<String>,
+) -> Result<usize, String> {
+    let registry: tauri::State<'_, SharedScriptRegistry> = app.state();
+    let scripts: Vec<ScriptEntry> = {
+        let reg = registry.lock().unwrap();
+        reg.get_all().iter().map(|e| (*e).clone()).collect()
+    };
+
+    let resolved = resolve_window_with_context(app, window_label)?;
+
+    for entry in &scripts {
+        inject_script_to_window(&resolved.window, entry)?;
+    }
+
+    Ok(scripts.len())
 }

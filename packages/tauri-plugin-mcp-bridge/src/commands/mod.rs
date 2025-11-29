@@ -13,6 +13,7 @@ pub mod ipc_monitor;
 pub mod list_windows;
 pub mod screenshot;
 pub mod script_executor;
+pub mod script_injection;
 pub mod window_info;
 
 // Re-export types and commands for convenience
@@ -30,4 +31,5 @@ pub use list_windows::{
 };
 pub use screenshot::capture_native_screenshot;
 pub use script_executor::script_result;
+pub use script_injection::request_script_injection;
 pub use window_info::get_window_info;

@@ -1,6 +1,12 @@
 import { z } from 'zod';
 import { getPluginClient, connectPlugin } from './plugin-client.js';
-import { buildScreenshotScript } from './scripts/html2canvas-loader.js';
+import {
+   buildScreenshotScript,
+   buildScreenshotCaptureScript,
+   getHtml2CanvasSource,
+   HTML2CANVAS_SCRIPT_ID,
+} from './scripts/html2canvas-loader.js';
+import { registerScript, isScriptRegistered } from './script-manager.js';
 
 /**
  * WebView Executor - Native IPC-based JavaScript execution
@@ -276,6 +282,30 @@ export interface CaptureScreenshotOptions {
 }
 
 /**
+ * Prepares the html2canvas script for screenshot capture.
+ * Tries to use the script manager for persistence, falls back to inline injection.
+ */
+async function prepareHtml2canvasScript(format: 'png' | 'jpeg', quality: number): Promise<string> {
+   try {
+      // Check if html2canvas is already registered
+      const isRegistered = await isScriptRegistered(HTML2CANVAS_SCRIPT_ID);
+
+      if (!isRegistered) {
+         // Register html2canvas via script manager for persistence across navigations
+         const html2canvasSource = getHtml2CanvasSource();
+
+         await registerScript(HTML2CANVAS_SCRIPT_ID, 'inline', html2canvasSource);
+      }
+
+      // Use the capture-only script since html2canvas is now registered
+      return buildScreenshotCaptureScript(format, quality);
+   } catch{
+      // Script manager not available, fall back to inline injection
+      return buildScreenshotScript(format, quality);
+   }
+}
+
+/**
  * Capture a screenshot of the entire webview.
  *
  * @param options - Screenshot options (format, quality, windowId)
@@ -324,8 +354,8 @@ export async function captureScreenshot(options: CaptureScreenshotOptions = {}):
    }
 
    // Fallback 1: Use html2canvas library for high-quality DOM rendering
-   // The library is bundled from node_modules, not loaded from CDN
-   const html2canvasScript = buildScreenshotScript(format, quality);
+   // Try to use the script manager to register html2canvas for persistence
+   const html2canvasScript = await prepareHtml2canvasScript(format, quality);
 
    // Fallback: Try Screen Capture API if available
    // Note: This script is wrapped by executeAsyncInWebview, so we don't need an IIFE

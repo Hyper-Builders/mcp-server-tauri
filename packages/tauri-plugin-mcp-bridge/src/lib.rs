@@ -75,6 +75,7 @@ pub mod config;
 pub mod discovery;
 pub mod monitor;
 pub mod screenshot;
+pub mod script_registry;
 pub mod websocket;
 
 pub use config::{Builder, Config};
@@ -82,6 +83,7 @@ pub use config::{Builder, Config};
 use commands::ScriptExecutor;
 use discovery::find_available_port;
 use monitor::IPCMonitor;
+use script_registry::create_shared_registry;
 use std::sync::{Arc, Mutex};
 use tauri::{plugin::Builder as PluginBuilder, plugin::TauriPlugin, Manager, Runtime};
 
@@ -156,6 +158,7 @@ pub fn init_with_config<R: Runtime>(config: Config) -> TauriPlugin<R> {
             commands::script_executor::script_result,
             commands::screenshot::capture_native_screenshot,
             commands::list_windows::list_windows,
+            commands::script_injection::request_script_injection,
         ])
         .js_init_script(include_str!("bridge.js").to_string())
         .setup(move |app, _api| {
@@ -165,6 +168,10 @@ pub fn init_with_config<R: Runtime>(config: Config) -> TauriPlugin<R> {
             // Initialize IPC monitor state
             let monitor = Arc::new(Mutex::new(IPCMonitor::new()));
             app.manage(monitor.clone());
+
+            // Initialize script registry for persistent script injection
+            let script_registry = create_shared_registry();
+            app.manage(script_registry);
 
             // Find an available port for WebSocket server
             let port = find_available_port(&bind_address);
