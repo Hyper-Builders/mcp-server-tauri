@@ -74,7 +74,7 @@ claude mcp add tauri npx @hypothesi/tauri-mcp-server
 | Tool | Description |
 |------|-------------|
 | `tauri_webview_screenshot` | Capture webview screenshots |
-| `tauri_driver_session` | Start/stop automation session |
+| `tauri_list_windows` | List all open webview windows |
 | `tauri_webview_find_element` | Find elements by selector |
 | `tauri_webview_interact` | Click, scroll, swipe, long-press |
 | `tauri_webview_keyboard` | Type text or send key events |
@@ -84,6 +84,7 @@ claude mcp add tauri npx @hypothesi/tauri-mcp-server
 | `tauri_webview_focus_element` | Focus on elements |
 | `tauri_driver_get_console_logs` | Get browser console logs |
 | `tauri_read_platform_logs` | Read Android/iOS/system logs |
+| `tauri_driver_session` | Start/stop automation session |
 
 ### IPC & Plugin
 
