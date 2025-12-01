@@ -59,14 +59,68 @@ Follow: https://raw.githubusercontent.com/silvermine/standardization/refs/heads/
 
 ## Releasing
 
-Each package has its own changelog that must be updated before releasing:
+This monorepo uses a **single version** across all packages. All packages share the same version number.
 
-- `packages/mcp-server/CHANGELOG.md` - for server changes
-- `packages/tauri-plugin-mcp-bridge/CHANGELOG.md` - for plugin changes
+### Files to Update
 
-The root `CHANGELOG.md` is for overall project history but is **not** used by the release workflow. GitHub release notes are generated from the package-specific changelogs.
+**Version files (all must have the same version):**
 
-Release process: `node scripts/release-package.js <plugin|server> <version|patch|minor|major>`
+- `packages/mcp-server/package.json` - `version` field
+- `packages/tauri-plugin-mcp-bridge/package.json` - `version` field
+- `packages/tauri-plugin-mcp-bridge/Cargo.toml` - `version` field
+
+**Changelog files (all three must be updated):**
+
+- `CHANGELOG.md` - Root changelog for overall project history
+- `packages/mcp-server/CHANGELOG.md` - Server-specific changes
+- `packages/tauri-plugin-mcp-bridge/CHANGELOG.md` - Plugin-specific changes
+
+**Lock files (updated automatically but must be committed):**
+
+- `package-lock.json` - Updated by `npm install`
+- `packages/tauri-plugin-mcp-bridge/Cargo.lock` - Updated by `cargo update`
+- `packages/test-app/src-tauri/Cargo.lock` - Updated by `cargo update`
+
+### Release Checklist
+
+1. **Review git log** to identify changes since the last release tag
+2. **Determine version bump** (patch for fixes, minor for features, major for breaking)
+3. **Update all three changelogs** with the new version entry:
+   - Add entry under `## [Unreleased]` with the new version and date
+   - Include changes relevant to each package (use `_No changes to this package._` if none)
+   - **Do not skip any version numbers** - if v0.2.1 exists, the next must be v0.2.2, not v0.2.3
+4. **Update version in package.json files** using npm (without git tag):
+   ```bash
+   npm version <version> --no-git-tag-version -w @hypothesi/tauri-mcp-server -w @hypothesi/tauri-plugin-mcp-bridge
+   ```
+5. **Update Cargo.toml version** manually to match
+6. **Update lock files**:
+   ```bash
+   npm install
+   cargo update --package tauri-plugin-mcp-bridge  # in packages/tauri-plugin-mcp-bridge/
+   cargo update --package tauri-plugin-mcp-bridge  # in packages/test-app/src-tauri/
+   ```
+7. **Verify versions** in lock files match the new version:
+   ```bash
+   grep -A2 '"@hypothesi/tauri-mcp-server"' package-lock.json | head -3
+   grep -A2 '"@hypothesi/tauri-plugin-mcp-bridge"' package-lock.json | head -3
+   ```
+8. **Stage all changed files**:
+   - All three changelogs
+   - Both package.json files
+   - Cargo.toml
+   - package-lock.json
+   - Both Cargo.lock files
+9. **Commit**: `git commit -m "chore: version bump: v<version>"`
+10. **Create signed tag**: `git tag -s v<version> -m "Release v<version>"`
+11. **Push**: `git push && git push --tags`
+
+### Common Mistakes to Avoid
+
+- **Skipping changelog entries**: Every version must have an entry in all three changelogs
+- **Forgetting lock files**: Both `package-lock.json` and both `Cargo.lock` files must be updated
+- **Version mismatch**: All version fields must match exactly
+- **Missing intermediate versions**: If changelogs are missing entries for previous versions, add them before creating the new release
 
 ## Rust Code
 
