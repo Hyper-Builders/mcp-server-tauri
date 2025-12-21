@@ -1,6 +1,6 @@
 [package]
 name = "tauri-plugin-mcp-bridge"
-version = "0.5.0"
+version = "0.5.1"
 description = "MCP Bridge plugin for Tauri - enables IPC monitoring and backend inspection"
 authors = ["hypothesi"]
 edition = "2021"
