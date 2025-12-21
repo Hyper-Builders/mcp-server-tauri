@@ -157,11 +157,15 @@ The server provides **slash commands** ([prompts](https://modelcontextprotocol.i
 
 [Learn more about prompts →](/api/prompts)
 
-## 16 Powerful Tools
+## 17 Powerful Tools
 
-The server exposes tools across 3 categories:
+The server exposes tools across 4 categories:
 
 <div class="tool-categories">
+   <div class="tool-category">
+      <Wrench :size="20" :stroke-width="2" class="category-icon" />
+      <strong>Setup &amp; Configuration</strong> (1 tool) - Guided setup instructions
+   </div>
    <div class="tool-category">
       <Target :size="20" :stroke-width="2" class="category-icon" />
       <strong>UI Automation & WebView</strong> (10 tools) - Gestures, screenshots, JS execution, element finding, logs
