@@ -1,5 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from 'vitest';
 import { manageDriverSession } from '../../src/driver/session-manager.js';
+import { executeInWebview } from '../../src/driver/webview-executor.js';
+import { getTestAppPort } from '../test-utils';
 import {
    registerScript,
    removeScript,
@@ -7,7 +9,26 @@ import {
    getScripts,
    isScriptRegistered,
 } from '../../src/driver/script-manager.js';
-import { executeInWebview } from '../../src/driver/webview-executor.js';
+
+/**
+ * Helper to wait for a condition with polling.
+ */
+async function waitForCondition(
+   checkFn: () => Promise<boolean>,
+   timeoutMs = 2000,
+   intervalMs = 50
+): Promise<boolean> {
+   const startTime = Date.now();
+
+   while (Date.now() - startTime < timeoutMs) {
+      if (await checkFn()) {
+         return true;
+      }
+      await new Promise((r) => { return setTimeout(r, intervalMs); });
+   }
+
+   return false;
+}
 
 /**
  * E2E tests for script manager.
@@ -17,9 +38,8 @@ describe('Script Manager E2E Tests', () => {
    const TIMEOUT = 15000;
 
    beforeAll(async () => {
-      // App is already started globally - just init the session
-      // Specify port 9300 to connect to the test-app (not other Tauri apps)
-      await manageDriverSession('start', undefined, 9300);
+      // App is already started globally - connect to the dynamically assigned port
+      await manageDriverSession('start', undefined, getTestAppPort());
    }, TIMEOUT);
 
    afterAll(async () => {
@@ -65,13 +85,14 @@ describe('Script Manager E2E Tests', () => {
             'window.__DOM_TEST__ = "injected";'
          );
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for the script to be executed
+         const found = await waitForCondition(async () => {
+            const result = await executeInWebview('return window.__DOM_TEST__');
 
-         // Verify the script was executed
-         const result = await executeInWebview('return window.__DOM_TEST__');
+            return result === 'injected';
+         });
 
-         expect(result).toBe('injected');
+         expect(found).toBe(true);
       }, TIMEOUT);
 
       it('should add script tag to document head', async () => {
@@ -81,15 +102,16 @@ describe('Script Manager E2E Tests', () => {
             'console.log("test");'
          );
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for the script tag to exist
+         const found = await waitForCondition(async () => {
+            const result = await executeInWebview(
+               'return !!document.querySelector(\'script[data-mcp-script-id="test-tag-script"]\')'
+            );
 
-         // Verify the script tag exists with the correct attribute
-         const result = await executeInWebview(
-            'return !!document.querySelector(\'script[data-mcp-script-id="test-tag-script"]\')'
-         );
+            return result === 'true';
+         });
 
-         expect(result).toBe('true');
+         expect(found).toBe(true);
       }, TIMEOUT);
    });
 
@@ -106,26 +128,28 @@ describe('Script Manager E2E Tests', () => {
       it('should remove script tag from DOM', async () => {
          await registerScript('dom-remove', 'inline', 'console.log("remove me");');
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
-
-         // Verify script exists
          const selector = 'script[data-mcp-script-id="dom-remove"]';
 
-         let exists = await executeInWebview(`return !!document.querySelector('${selector}')`);
+         // Poll for script to exist
+         const injected = await waitForCondition(async () => {
+            const result = await executeInWebview(`return !!document.querySelector('${selector}')`);
 
-         expect(exists).toBe('true');
+            return result === 'true';
+         });
+
+         expect(injected).toBe(true);
 
          // Remove the script
          await removeScript('dom-remove');
 
-         // Wait a moment for removal
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for script to be removed
+         const removed = await waitForCondition(async () => {
+            const result = await executeInWebview(`return !!document.querySelector('${selector}')`);
 
-         // Verify script is gone
-         exists = await executeInWebview(`return !!document.querySelector('${selector}')`);
+            return result === 'false';
+         });
 
-         expect(exists).toBe('false');
+         expect(removed).toBe(true);
       }, TIMEOUT);
 
       it('should handle removing non-existent script', async () => {
@@ -176,26 +200,32 @@ describe('Script Manager E2E Tests', () => {
          await registerScript('clear-dom-1', 'inline', 'console.log(1);');
          await registerScript('clear-dom-2', 'inline', 'console.log(2);');
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
-
-         // Verify scripts exist
          const countSelector = 'script[data-mcp-script-id]';
 
-         let count = await executeInWebview(`return document.querySelectorAll('${countSelector}').length`);
+         // Poll for scripts to be injected
+         const injected = await waitForCondition(async () => {
+            const count = await executeInWebview(
+               `return document.querySelectorAll('${countSelector}').length`
+            );
 
-         expect(parseInt(count, 10)).toBeGreaterThanOrEqual(2);
+            return parseInt(count, 10) >= 2;
+         });
+
+         expect(injected).toBe(true);
 
          // Clear all scripts
          await clearScripts();
 
-         // Wait a moment for removal
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for scripts to be removed
+         const cleared = await waitForCondition(async () => {
+            const count = await executeInWebview(
+               `return document.querySelectorAll('${countSelector}').length`
+            );
 
-         // Verify all MCP scripts are gone
-         count = await executeInWebview(`return document.querySelectorAll('${countSelector}').length`);
+            return count === '0';
+         });
 
-         expect(count).toBe('0');
+         expect(cleared).toBe(true);
       }, TIMEOUT);
    });
 
@@ -219,25 +249,28 @@ describe('Script Manager E2E Tests', () => {
       it('should replace script with same ID', async () => {
          await registerScript('replace-me', 'inline', 'window.__REPLACE_VALUE__ = "original";');
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for original value
+         const originalSet = await waitForCondition(async () => {
+            const value = await executeInWebview('return window.__REPLACE_VALUE__');
 
-         let value = await executeInWebview('return window.__REPLACE_VALUE__');
+            return value === 'original';
+         });
 
-         expect(value).toBe('original');
+         expect(originalSet).toBe(true);
 
          // Register again with same ID but different content
          await registerScript('replace-me', 'inline', 'window.__REPLACE_VALUE__ = "replaced";');
 
-         // Wait a moment for injection
-         await new Promise((r) => { return setTimeout(r, 100); });
+         // Poll for replaced value
+         const replacedSet = await waitForCondition(async () => {
+            const value = await executeInWebview('return window.__REPLACE_VALUE__');
 
-         value = await executeInWebview('return window.__REPLACE_VALUE__');
+            return value === 'replaced';
+         });
 
-         expect(value).toBe('replaced');
+         expect(replacedSet).toBe(true);
 
          // Should still only have one script in registry
-
          const { scripts } = await getScripts();
 
          const replaceScripts = scripts.filter((s) => { return s.id === 'replace-me'; });
