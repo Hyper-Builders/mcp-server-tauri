@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 import { getDefaultHost, getDefaultPort } from '../config.js';
 import { AppDiscovery } from './app-discovery.js';
-import { resetPluginClient, getPluginClient, connectPlugin } from './plugin-client.js';
+import { resetPluginClient, getExistingPluginClient, connectPlugin } from './plugin-client.js';
 import { getBackendState } from './plugin-commands.js';
 import { resetInitialization } from './webview-executor.js';
 
@@ -38,6 +38,21 @@ export const ManageDriverSessionSchema = z.object({
 // Track current session info including app identifier for session reuse
 let appDiscovery: AppDiscovery | null = null,
     currentSession: { name: string; identifier: string | null; host: string; port: number } | null = null;
+
+/**
+ * Check if a session is currently active.
+ * @returns true if a session has been started and not stopped
+ */
+export function hasActiveSession(): boolean {
+   return currentSession !== null;
+}
+
+/**
+ * Get the current session info, or null if no session is active.
+ */
+export function getCurrentSession(): { name: string; identifier: string | null; host: string; port: number } | null {
+   return currentSession;
+}
 
 function getAppDiscovery(host: string): AppDiscovery {
    if (!appDiscovery || appDiscovery.host !== host) {
@@ -78,7 +93,8 @@ async function tryConnect(host: string, port: number): Promise<{ name: string; h
  */
 async function fetchAppIdentifier(): Promise<string | null> {
    try {
-      const stateJson = await getBackendState();
+      // Use existing client - called during session setup before currentSession is set
+      const stateJson = await getBackendState(true);
 
       const state = JSON.parse(stateJson);
 
@@ -117,9 +133,9 @@ export async function manageDriverSession(
 ): Promise<string> {
    // Handle status action
    if (action === 'status') {
-      const client = getPluginClient();
+      const client = getExistingPluginClient();
 
-      if (client.isConnected() && currentSession) {
+      if (client?.isConnected() && currentSession) {
          return JSON.stringify({
             connected: true,
             app: currentSession.name,

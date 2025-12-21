@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { getPluginClient, connectPlugin } from './plugin-client.js';
+import { hasActiveSession, getCurrentSession } from './session-manager.js';
 import { createMcpLogger } from '../logger.js';
 import {
    buildScreenshotScript,
@@ -32,18 +33,32 @@ const driverLogger = createMcpLogger('DRIVER');
  * This is called automatically by all tool functions.
  *
  * Initialization includes:
- * - Connecting to the plugin WebSocket
+ * - Verifying an active session exists (via tauri_driver_session)
+ * - Connecting to the plugin WebSocket using session config
  * - Console capture is already initialized by bridge.js in the Tauri app
  *
  * This function is idempotent - calling it multiple times is safe.
+ *
+ * @throws Error if no session is active (tauri_driver_session must be called first)
  */
 export async function ensureReady(): Promise<void> {
    if (isInitialized) {
       return;
    }
 
-   // Connect to the plugin
-   await connectPlugin();
+   // Require an active session to prevent connecting to wrong app
+   if (!hasActiveSession()) {
+      throw new Error(
+         'No active session. Call tauri_driver_session with action "start" first to connect to a Tauri app.'
+      );
+   }
+
+   // Get session config and connect with explicit host/port
+   const session = getCurrentSession();
+
+   if (session) {
+      await connectPlugin(session.host, session.port);
+   }
 
    isInitialized = true;
 }
@@ -92,7 +107,15 @@ export async function executeInWebviewWithContext(
    try {
       // Ensure we're fully initialized
       await ensureReady();
-      const client = getPluginClient();
+
+      // Get session config to use correct host/port
+      const session = getCurrentSession();
+
+      if (!session) {
+         throw new Error('No active session');
+      }
+
+      const client = getPluginClient(session.host, session.port);
 
       // Send script directly - Rust handles wrapping and IPC callbacks.
       // Use 7s timeout (longer than Rust's 5s) so errors return before Node times out.

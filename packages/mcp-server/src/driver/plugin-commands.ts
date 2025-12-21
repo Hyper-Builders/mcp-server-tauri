@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getPluginClient, connectPlugin } from './plugin-client.js';
+import { ensureSessionAndConnect, getExistingPluginClient } from './plugin-client.js';
 
 export const ExecuteIPCCommandSchema = z.object({
    command: z.string(),
@@ -8,9 +8,8 @@ export const ExecuteIPCCommandSchema = z.object({
 
 export async function executeIPCCommand(command: string, args: unknown = {}): Promise<string> {
    try {
-      // Ensure we're connected to the plugin
-      await connectPlugin();
-      const client = getPluginClient();
+      // Ensure we have an active session and are connected
+      const client = await ensureSessionAndConnect();
 
       // Send IPC command via WebSocket to the mcp-bridge plugin
       const response = await client.sendCommand({
@@ -162,8 +161,39 @@ export async function getWindowInfo(): Promise<string> {
 
 export const GetBackendStateSchema = z.object({});
 
-export async function getBackendState(): Promise<string> {
+/**
+ * Get backend state from the connected Tauri app.
+ *
+ * This function can work in two modes:
+ * 1. Normal mode: Requires an active session (for MCP tool calls)
+ * 2. Setup mode: Uses existing connected client (for session setup)
+ *
+ * @param useExistingClient If true, uses the existing connected client without
+ *        session validation. Used during session setup before currentSession is set.
+ */
+export async function getBackendState(useExistingClient = false): Promise<string> {
    try {
+      if (useExistingClient) {
+         // During session setup, use the already-connected client directly
+         const client = getExistingPluginClient();
+
+         if (!client || !client.isConnected()) {
+            throw new Error('No connected client available');
+         }
+
+         const response = await client.sendCommand({
+            command: 'invoke_tauri',
+            args: { command: 'plugin:mcp-bridge|get_backend_state', args: {} },
+         });
+
+         if (!response.success) {
+            throw new Error(response.error || 'Unknown error');
+         }
+
+         return JSON.stringify(response.data);
+      }
+
+      // Normal mode: use executeIPCCommand which validates session
       const result = await executeIPCCommand('plugin:mcp-bridge|get_backend_state');
 
       const parsed = JSON.parse(result);
@@ -191,8 +221,7 @@ export const ListWindowsSchema = z.object({});
  */
 export async function listWindows(): Promise<string> {
    try {
-      await connectPlugin();
-      const client = getPluginClient();
+      const client = await ensureSessionAndConnect();
 
       const response = await client.sendCommand({
          command: 'list_windows',
@@ -237,8 +266,7 @@ export async function resizeWindow(options: {
    logical?: boolean;
 }): Promise<string> {
    try {
-      await connectPlugin();
-      const client = getPluginClient();
+      const client = await ensureSessionAndConnect();
 
       const response = await client.sendCommand({
          command: 'resize_window',
@@ -302,8 +330,7 @@ export async function manageWindow(options: {
 
       case 'info': {
          try {
-            await connectPlugin();
-            const client = getPluginClient();
+            const client = await ensureSessionAndConnect();
 
             const response = await client.sendCommand({
                command: 'get_window_info',

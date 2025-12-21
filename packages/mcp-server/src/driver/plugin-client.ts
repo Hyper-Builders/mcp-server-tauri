@@ -224,7 +224,22 @@ export class PluginClient extends EventEmitter {
 let pluginClient: PluginClient | null = null;
 
 /**
+ * Gets the existing singleton PluginClient without creating or modifying it.
+ * Use this for status checks where you don't want to affect the current connection.
+ *
+ * @returns The existing PluginClient or null if none exists
+ */
+export function getExistingPluginClient(): PluginClient | null {
+   return pluginClient;
+}
+
+/**
  * Gets or creates a singleton PluginClient.
+ *
+ * If host/port are provided and differ from the existing client's configuration,
+ * the existing client is disconnected and a new one is created. This ensures
+ * that session start with a specific port always uses that port.
+ *
  * @param host Optional host override
  * @param port Optional port override
  */
@@ -232,6 +247,12 @@ export function getPluginClient(host?: string, port?: number): PluginClient {
    const resolvedHost = host ?? getDefaultHost();
 
    const resolvedPort = port ?? getDefaultPort();
+
+   // If singleton exists but host/port don't match, reset it
+   if (pluginClient && (pluginClient.host !== resolvedHost || pluginClient.port !== resolvedPort)) {
+      pluginClient.disconnect();
+      pluginClient = null;
+   }
 
    if (!pluginClient) {
       pluginClient = new PluginClient(resolvedHost, resolvedPort);
@@ -256,6 +277,32 @@ export async function connectPlugin(host?: string, port?: number): Promise<void>
    if (!client.isConnected()) {
       await client.connect();
    }
+}
+
+/**
+ * Ensures a session is active and connects to the plugin using session config.
+ * This should be used by all tools that require a connected Tauri app.
+ *
+ * @throws Error if no session is active
+ */
+export async function ensureSessionAndConnect(): Promise<PluginClient> {
+   // Import dynamically to avoid circular dependency
+   const { hasActiveSession, getCurrentSession } = await import('./session-manager.js');
+
+   if (!hasActiveSession()) {
+      throw new Error(
+         'No active session. Call tauri_driver_session with action "start" first to connect to a Tauri app.'
+      );
+   }
+
+   const session = getCurrentSession();
+
+   if (!session) {
+      throw new Error('Session state is inconsistent. Please restart the session.');
+   }
+
+   await connectPlugin(session.host, session.port);
+   return getPluginClient(session.host, session.port);
 }
 
 export async function disconnectPlugin(): Promise<void> {

@@ -7,7 +7,7 @@
  * @internal This module is for internal use only and is not exposed as MCP tools.
  */
 
-import { getPluginClient, connectPlugin } from './plugin-client.js';
+import { ensureSessionAndConnect } from './plugin-client.js';
 
 /**
  * Type of script to inject.
@@ -77,8 +77,7 @@ export async function registerScript(
    content: string,
    windowLabel?: string
 ): Promise<RegisterScriptResponse> {
-   await connectPlugin();
-   const client = getPluginClient();
+   const client = await ensureSessionAndConnect();
 
    const response = await client.sendCommand({
       command: 'register_script',
@@ -103,8 +102,7 @@ export async function removeScript(
    id: string,
    windowLabel?: string
 ): Promise<RemoveScriptResponse> {
-   await connectPlugin();
-   const client = getPluginClient();
+   const client = await ensureSessionAndConnect();
 
    const response = await client.sendCommand({
       command: 'remove_script',
@@ -125,8 +123,7 @@ export async function removeScript(
  * @returns Promise resolving to the number of scripts cleared
  */
 export async function clearScripts(windowLabel?: string): Promise<ClearScriptsResponse> {
-   await connectPlugin();
-   const client = getPluginClient();
+   const client = await ensureSessionAndConnect();
 
    const response = await client.sendCommand({
       command: 'clear_scripts',
@@ -146,8 +143,7 @@ export async function clearScripts(windowLabel?: string): Promise<ClearScriptsRe
  * @returns Promise resolving to the list of registered scripts
  */
 export async function getScripts(): Promise<GetScriptsResponse> {
-   await connectPlugin();
-   const client = getPluginClient();
+   const client = await ensureSessionAndConnect();
 
    const response = await client.sendCommand({
       command: 'get_scripts',
