@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.2] - 2025-12-24
+
+### Fixed
+- Convert update-server-json-version script to ES modules to fix CI compatibility
+
 ## [0.6.1] - 2025-12-23
 
 ### Added
