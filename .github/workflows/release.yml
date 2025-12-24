@@ -125,7 +125,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
 
       - name: Setup Rust
@@ -152,7 +152,7 @@ jobs:
       - name: Publish to NPM
         run: |
           cd packages/tauri-plugin-mcp-bridge
-          npm publish --access public
+          npm publish --access public --provenance
         continue-on-error: false
 
       - name: Publish to crates.io
@@ -178,7 +178,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "24"
+          node-version: "lts/*"
           registry-url: "https://registry.npmjs.org"
 
       - name: Install and update version
@@ -186,6 +186,9 @@ jobs:
           npm ci
           cd packages/mcp-server
           npm version ${{ needs.determine-packages.outputs.version }} --no-git-tag-version --allow-same-version
+
+      - name: Update server.json version
+        run: node packages/mcp-server/scripts/update-server-json-version.js ${{ needs.determine-packages.outputs.version }}
 
       - name: Build
         run: |
@@ -195,7 +198,7 @@ jobs:
       - name: Publish to NPM
         run: |
           cd packages/mcp-server
-          npm publish --access public
+          npm publish --access public --provenance
         continue-on-error: false
 
   create-release:
