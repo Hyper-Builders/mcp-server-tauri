@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.4] - 2025-12-28
+
+### Fixed
+- Update MCP server.json version and GitHub URL for registry compatibility
+
 ## [0.6.3] - 2025-12-28
 
 ### Fixed
