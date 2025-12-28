@@ -1,6 +1,56 @@
 import { z } from 'zod';
 import { execa } from 'execa';
+import { existsSync } from 'node:fs';
+import { homedir } from 'node:os';
+import { join } from 'node:path';
 import { getConsoleLogs } from '../driver/webview-interactions.js';
+
+/**
+ * Find the adb executable path. Checks environment variables first, then common
+ * installation locations on macOS, Linux, and Windows. This is necessary because
+ * MCP servers often run without ANDROID_HOME set (e.g., global npm installs).
+ */
+function findAdbPath(): string {
+   // Check environment variables first
+   // eslint-disable-next-line no-process-env
+   const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
+
+   if (androidHome) {
+      const envPath = join(androidHome, 'platform-tools', 'adb');
+
+      if (existsSync(envPath)) {
+         return envPath;
+      }
+   }
+
+   // Common installation locations to check
+   const home = homedir();
+
+   const commonPaths = [
+      // macOS - Android Studio default
+      join(home, 'Library', 'Android', 'sdk', 'platform-tools', 'adb'),
+      // Linux - Android Studio default
+      join(home, 'Android', 'Sdk', 'platform-tools', 'adb'),
+      // Linux - alternative location
+      join(home, 'android-sdk', 'platform-tools', 'adb'),
+      // Windows - Android Studio default
+      join(home, 'AppData', 'Local', 'Android', 'Sdk', 'platform-tools', 'adb.exe'),
+      // Homebrew on macOS
+      '/opt/homebrew/bin/adb',
+      '/usr/local/bin/adb',
+      // Linux system-wide
+      '/usr/bin/adb',
+   ];
+
+   for (const adbPath of commonPaths) {
+      if (existsSync(adbPath)) {
+         return adbPath;
+      }
+   }
+
+   // Fall back to PATH (will fail if not in PATH, but gives a clear error)
+   return 'adb';
+}
 
 export const ReadLogsSchema = z.object({
    source: z.enum([ 'console', 'android', 'ios', 'system' ])
@@ -35,11 +85,7 @@ export async function readLogs(options: ReadLogsOptions): Promise<string> {
       }
 
       if (source === 'android') {
-         // Find adb - check ANDROID_HOME first, then fall back to PATH
-         // eslint-disable-next-line no-process-env
-         const androidHome = process.env.ANDROID_HOME || process.env.ANDROID_SDK_ROOT;
-
-         const adbPath = androidHome ? `${androidHome}/platform-tools/adb` : 'adb';
+         const adbPath = findAdbPath();
 
          const args = [ 'logcat', '-d' ];
 
