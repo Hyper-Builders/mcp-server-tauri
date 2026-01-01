@@ -504,6 +504,10 @@ async fn handle_connection<R: Runtime>(
                             .and_then(|a| a.get("quality"))
                             .and_then(|v| v.as_u64())
                             .map(|q| q as u8);
+                        let max_width = args
+                            .and_then(|a| a.get("maxWidth"))
+                            .and_then(|v| v.as_u64())
+                            .map(|w| w as u32);
                         let window_label = args
                             .and_then(|a| a.get("windowLabel"))
                             .and_then(|v| v.as_str())
@@ -516,6 +520,7 @@ async fn handle_connection<R: Runtime>(
                                     resolved.window,
                                     format,
                                     quality,
+                                    max_width,
                                 )
                                 .await
                                 {

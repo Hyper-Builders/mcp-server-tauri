@@ -352,6 +352,7 @@ export interface CaptureScreenshotOptions {
    quality?: number;
    windowId?: string;
    appIdentifier?: string | number;
+   maxWidth?: number;
 }
 
 /**
@@ -381,11 +382,11 @@ async function prepareHtml2canvasScript(format: 'png' | 'jpeg', quality: number)
 /**
  * Capture a screenshot of the entire webview.
  *
- * @param options - Screenshot options (format, quality, windowId, appIdentifier)
+ * @param options - Screenshot options (format, quality, windowId, appIdentifier, etc.)
  * @returns Screenshot result with image content
  */
 export async function captureScreenshot(options: CaptureScreenshotOptions = {}): Promise<ScreenshotResult> {
-   const { format = 'png', quality = 90, windowId, appIdentifier } = options;
+   const { format = 'png', quality = 90, windowId, appIdentifier, maxWidth } = options;
 
    // Primary implementation: Use native platform-specific APIs
    // - macOS: WKWebView takeSnapshot
@@ -407,6 +408,7 @@ export async function captureScreenshot(options: CaptureScreenshotOptions = {}):
             format,
             quality,
             windowLabel: windowId,
+            maxWidth,
          },
       }, 15000);
 

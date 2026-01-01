@@ -115,6 +115,79 @@ describe('Webview Interactions E2E Tests', () => {
             expect(() => { return Buffer.from(data, 'base64'); }).not.toThrow();
          }
       }, TIMEOUT);
+
+      it('should resize screenshot when maxWidth is smaller than image width', async () => {
+         // Take a screenshot with maxWidth constraint
+         const result = await screenshot({ maxWidth: 100 });
+
+         expect('content' in result).toBe(true);
+         if (!('content' in result)) {
+            throw new Error('Expected ScreenshotResult with content');
+         }
+
+         type ContentItem = { type: string; text?: string; data?: string; mimeType?: string };
+         const imageContent = result.content.find((c: ContentItem) => { return c.type === 'image'; }) as ContentItem | undefined;
+
+         expect(imageContent).toBeDefined();
+         expect(imageContent?.type).toBe('image');
+
+         if (imageContent?.type === 'image' && imageContent.data) {
+            // Decode the image and check its dimensions
+            const buffer = Buffer.from(imageContent.data, 'base64');
+
+            // PNG header: width is at bytes 16-19 (big-endian)
+            // Check if it's a PNG (starts with PNG signature)
+            const isPng = buffer[0] === 0x89 && buffer[1] === 0x50 && buffer[2] === 0x4E && buffer[3] === 0x47;
+
+            if (isPng) {
+               const width = buffer.readUInt32BE(16);
+
+               expect(width).toBeLessThanOrEqual(100);
+            }
+         }
+      }, TIMEOUT);
+
+      it('should not upscale when maxWidth is larger than image width', async () => {
+         // First take a screenshot without maxWidth to get original size
+         const originalResult = await screenshot({});
+
+         expect('content' in originalResult).toBe(true);
+         if (!('content' in originalResult)) {
+            throw new Error('Expected ScreenshotResult with content');
+         }
+
+         type ContentItem = { type: string; text?: string; data?: string; mimeType?: string };
+         const originalImage = originalResult.content.find((c: ContentItem) => { return c.type === 'image'; }) as ContentItem | undefined;
+
+         // Take another screenshot with very large maxWidth
+         const result = await screenshot({ maxWidth: 10000 });
+
+         expect('content' in result).toBe(true);
+         if (!('content' in result)) {
+            throw new Error('Expected ScreenshotResult with content');
+         }
+
+         const imageContent = result.content.find((c: ContentItem) => { return c.type === 'image'; }) as ContentItem | undefined;
+
+         expect(imageContent).toBeDefined();
+
+         if (originalImage?.data && imageContent?.data) {
+            const originalBuffer = Buffer.from(originalImage.data, 'base64'),
+                  newBuffer = Buffer.from(imageContent.data, 'base64');
+
+            // Check PNG dimensions
+            const isPngOriginal = originalBuffer[0] === 0x89 && originalBuffer[1] === 0x50,
+                  isPngNew = newBuffer[0] === 0x89 && newBuffer[1] === 0x50;
+
+            if (isPngOriginal && isPngNew) {
+               const originalWidth = originalBuffer.readUInt32BE(16),
+                     newWidth = newBuffer.readUInt32BE(16);
+
+               // Width should be the same (not upscaled)
+               expect(newWidth).toBe(originalWidth);
+            }
+         }
+      }, TIMEOUT);
    });
 
    describe('Keyboard Interactions', () => {

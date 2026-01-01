@@ -342,6 +342,7 @@ export const TOOLS: ToolDefinition[] = [
             windowId: parsed.windowId,
             filePath: parsed.filePath,
             appIdentifier: parsed.appIdentifier,
+            maxWidth: parsed.maxWidth,
          });
 
          // If saved to file, return text confirmation

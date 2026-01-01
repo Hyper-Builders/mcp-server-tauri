@@ -1,3 +1,8 @@
+use std::env;
+use std::io::Cursor;
+
+use image::imageops::FilterType;
+use image::ImageFormat;
 use tauri::{Runtime, WebviewWindow};
 
 // Platform-specific modules
@@ -15,6 +20,9 @@ mod ios;
 
 #[cfg(target_os = "android")]
 mod android;
+
+/// Environment variable name for default max width
+const ENV_MAX_WIDTH: &str = "TAURI_MCP_SCREENSHOT_MAX_WIDTH";
 
 /// Screenshot result containing the image data
 #[derive(Debug)]
@@ -35,8 +43,67 @@ pub enum ScreenshotError {
     #[error("Encoding failed: {0}")]
     EncodeFailed(String),
 
+    #[error("Resize failed: {0}")]
+    ResizeFailed(String),
+
     #[error("Timeout exceeded")]
     Timeout,
+}
+
+/// Get the effective max_width value.
+/// Priority: param > env var > None
+fn get_effective_max_width(param: Option<u32>) -> Option<u32> {
+    if param.is_some() {
+        return param;
+    }
+
+    env::var(ENV_MAX_WIDTH)
+        .ok()
+        .and_then(|s| s.parse::<u32>().ok())
+}
+
+/// Resize image data if it exceeds max_width, preserving aspect ratio.
+/// Returns the original data if no resizing is needed.
+fn resize_if_needed(
+    data: Vec<u8>,
+    max_width: u32,
+    format: &str,
+    quality: u8,
+) -> Result<Vec<u8>, ScreenshotError> {
+    let img = image::load_from_memory(&data)
+        .map_err(|e| ScreenshotError::ResizeFailed(format!("Failed to decode image: {e}")))?;
+
+    let current_width = img.width();
+
+    // Only resize if image is wider than max_width (never upscale)
+    if current_width <= max_width {
+        return Ok(data);
+    }
+
+    // Calculate new dimensions preserving aspect ratio
+    let current_height = img.height();
+    let scale = max_width as f64 / current_width as f64;
+    let new_height = (current_height as f64 * scale).round() as u32;
+
+    // Resize using Lanczos3 for high quality
+    let resized = img.resize(max_width, new_height, FilterType::Lanczos3);
+
+    // Encode back to the requested format
+    let mut buffer = Cursor::new(Vec::new());
+
+    if format == "jpeg" {
+        let encoder = image::codecs::jpeg::JpegEncoder::new_with_quality(&mut buffer, quality);
+
+        resized
+            .write_with_encoder(encoder)
+            .map_err(|e| ScreenshotError::ResizeFailed(format!("Failed to encode JPEG: {e}")))?;
+    } else {
+        resized
+            .write_to(&mut buffer, ImageFormat::Png)
+            .map_err(|e| ScreenshotError::ResizeFailed(format!("Failed to encode PNG: {e}")))?;
+    }
+
+    Ok(buffer.into_inner())
 }
 
 /// Platform-specific screenshot implementation trait
@@ -51,7 +118,8 @@ pub trait PlatformScreenshot {
 pub async fn capture_viewport_screenshot<R: Runtime>(
     window: &WebviewWindow<R>,
     format: &str,
-    _quality: u8,
+    quality: u8,
+    max_width: Option<u32>,
 ) -> Result<String, ScreenshotError> {
     // Dispatch to platform-specific implementation
     #[cfg(target_os = "macos")]
@@ -78,6 +146,13 @@ pub async fn capture_viewport_screenshot<R: Runtime>(
     )))]
     return Err(ScreenshotError::PlatformUnsupported);
 
+    // Apply max_width constraint if specified (param or env var)
+    let effective_max_width = get_effective_max_width(max_width);
+    let final_data = match effective_max_width {
+        Some(max_w) => resize_if_needed(screenshot.data, max_w, format, quality)?,
+        None => screenshot.data,
+    };
+
     // Convert to base64 data URL
     let mime_type = if format == "jpeg" {
         "image/jpeg"
@@ -85,12 +160,8 @@ pub async fn capture_viewport_screenshot<R: Runtime>(
         "image/png"
     };
 
-    // If we need to convert PNG to JPEG or apply quality settings,
-    // we'll need to use the image crate here
-    // For now, we'll just return the PNG data
-
     use base64::Engine as _;
-    let base64_data = base64::engine::general_purpose::STANDARD.encode(&screenshot.data);
+    let base64_data = base64::engine::general_purpose::STANDARD.encode(&final_data);
     let data_url = format!("data:{mime_type};base64,{base64_data}");
 
     Ok(data_url)

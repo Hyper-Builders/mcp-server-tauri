@@ -89,6 +89,7 @@ Capture a screenshot of the current viewport (visible area) of the webview.
 | `quality` | number | No | JPEG quality 0-100 (only for jpeg format) |
 | `filePath` | string | No | File path to save the screenshot to instead of returning base64 |
 | `windowId` | string | No | Window label to target (defaults to 'main') |
+| `maxWidth` | number | No | Maximum width in pixels. Images wider than this will be scaled down proportionally |
 
 ### Example
 
@@ -105,11 +106,26 @@ Capture a screenshot of the current viewport (visible area) of the webview.
   "format": "png",
   "filePath": "/path/to/screenshot.png"
 }
+
+// Take a screenshot with max width constraint (useful for reducing token usage)
+{
+  "tool": "tauri_webview_screenshot",
+  "maxWidth": 800
+}
 ```
 
 ### Response
 
 Returns a base64-encoded image, or if `filePath` is provided, returns the path where the screenshot was saved.
+
+### Environment Variable
+
+You can set a default `maxWidth` for all screenshots using the `TAURI_MCP_SCREENSHOT_MAX_WIDTH` environment variable. The tool parameter takes precedence over the environment variable.
+
+```bash
+# Set default max width to 800 pixels
+export TAURI_MCP_SCREENSHOT_MAX_WIDTH=800
+```
 
 ::: tip
 This only captures what is currently visible. Scroll content into view before taking screenshots if you need to capture specific elements.

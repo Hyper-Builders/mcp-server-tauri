@@ -29,6 +29,7 @@ pub async fn capture_native_screenshot<R: Runtime>(
     window: WebviewWindow<R>,
     format: Option<String>,
     quality: Option<u8>,
+    max_width: Option<u32>,
 ) -> Result<String, String> {
     let format = format.unwrap_or_else(|| "png".to_string());
     let quality = quality.unwrap_or(90);
@@ -36,7 +37,7 @@ pub async fn capture_native_screenshot<R: Runtime>(
     // Use the screenshot module for viewport capture
     use crate::screenshot;
 
-    match screenshot::capture_viewport_screenshot(&window, &format, quality).await {
+    match screenshot::capture_viewport_screenshot(&window, &format, quality, max_width).await {
         Ok(data_url) => Ok(data_url),
         Err(e) => Err(e.to_string()),
     }
